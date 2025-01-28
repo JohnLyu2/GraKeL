@@ -1,3 +1,5 @@
+# John made changes to fix the NaN issue in outer product when a graph is large
+
 """The weisfeiler lehman kernel :cite:`shervashidze2011weisfeiler`."""
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause
@@ -300,7 +302,16 @@ class WeisfeilerLehman(Kernel):
         self._X_diag = np.diagonal(km)
         if self.normalize:
             old_settings = np.seterr(divide='ignore')
-            km = np.nan_to_num(np.divide(km, np.sqrt(np.outer(self._X_diag, self._X_diag))))
+
+
+            # original code to compute km
+            # km = np.nan_to_num(np.divide(km, np.sqrt(np.outer(self._X_diag, self._X_diag))))
+
+            log_diag = np.log1p(self._X_diag)  # Use log1p for numerical stability
+            log_outer = log_diag[:, None] + log_diag[None, :]
+            sqrt_outer_product = np.exp(log_outer / 2)  # Exponentiate after dividing by 2
+            km = np.nan_to_num(np.divide(km, sqrt_outer_product))
+
             np.seterr(**old_settings)
         return km
 
@@ -451,7 +462,25 @@ class WeisfeilerLehman(Kernel):
         if self.normalize:
             X_diag, Y_diag = self.diagonal()
             old_settings = np.seterr(divide='ignore')
-            K = np.nan_to_num(np.divide(K, np.sqrt(np.outer(Y_diag, X_diag))))
+
+            # original code to compute K
+            # K = np.nan_to_num(np.divide(K, np.sqrt(np.outer(Y_diag, X_diag)))
+
+            # Ensure X_diag and Y_diag are arrays
+            X_diag = np.atleast_1d(X_diag)
+            Y_diag = np.atleast_1d(Y_diag)
+
+            # Use logarithmic scaling for numerical stability
+            log_X_diag = np.log1p(X_diag)  # log1p is more stable for small values
+            log_Y_diag = np.log1p(Y_diag)
+            
+            # Compute the square root of the outer product in log space
+            log_outer = log_Y_diag[:, None] + log_X_diag[None, :]  # Add in log space
+            sqrt_outer_product = np.exp(log_outer / 2)  # Convert back from log space
+            
+            # Normalize the kernel matrix
+            K = np.nan_to_num(np.divide(K, sqrt_outer_product))  # Avoid NaN values
+
             np.seterr(**old_settings)
 
         return K
@@ -525,3 +554,4 @@ def efit_transform(object, data):
 def etransform(object, data):
     """Transform an object on data."""
     return object.transform(data)
+
