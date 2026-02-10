@@ -300,7 +300,9 @@ class WeisfeilerLehman(Kernel):
         self._X_diag = np.diagonal(km)
         if self.normalize:
             old_settings = np.seterr(divide='ignore')
-            km = np.nan_to_num(np.divide(km, np.sqrt(np.outer(self._X_diag, self._X_diag))))
+            # Normalize so km[i,j] /= sqrt(km[i,i]*km[j,j]); use log-space to avoid overflow.
+            log_d = np.log(np.maximum(self._X_diag, np.finfo(float).tiny))
+            km = np.nan_to_num(km / np.exp((log_d[:, None] + log_d[None, :]) / 2))
             np.seterr(**old_settings)
         return km
 
@@ -451,7 +453,10 @@ class WeisfeilerLehman(Kernel):
         if self.normalize:
             X_diag, Y_diag = self.diagonal()
             old_settings = np.seterr(divide='ignore')
-            K = np.nan_to_num(np.divide(K, np.sqrt(np.outer(Y_diag, X_diag))))
+            # Normalize so K[i,j] /= sqrt(Y_diag[i]*X_diag[j]); use log-space to avoid overflow.
+            log_y = np.log(np.maximum(np.atleast_1d(Y_diag), np.finfo(float).tiny))
+            log_x = np.log(np.maximum(np.atleast_1d(X_diag), np.finfo(float).tiny))
+            K = np.nan_to_num(K / np.exp((log_y[:, None] + log_x[None, :]) / 2))
             np.seterr(**old_settings)
 
         return K
